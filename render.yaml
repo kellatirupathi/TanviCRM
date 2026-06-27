@@ -1,0 +1,31 @@
+# Render Blueprint for the TanviCRM backend API.
+# In Render: New → Blueprint → connect this repo and it reads this file.
+# Secrets (MONGO_URI, JWT_SECRET) are marked sync:false — set them in the
+# Render dashboard, never in the repo.
+services:
+  - type: web
+    name: tanvicrm-api
+    runtime: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ALLOW_VERCEL_PREVIEWS
+        value: "true"
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      # Set these in the Render dashboard (Environment tab):
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: CLIENT_ORIGIN
+        sync: false
+      - key: SEED_ADMIN_EMAIL
+        sync: false
+      - key: SEED_ADMIN_PASSWORD
+        sync: false

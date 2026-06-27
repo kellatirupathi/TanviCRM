@@ -14,13 +14,20 @@ export function createApp() {
 
   const origins = (process.env.CLIENT_ORIGIN || 'http://localhost:5173')
     .split(',')
-    .map((o) => o.trim());
+    .map((o) => o.trim())
+    .filter(Boolean);
+  // Optionally allow all *.vercel.app preview deployments (set ALLOW_VERCEL_PREVIEWS=true).
+  const allowVercelPreviews = process.env.ALLOW_VERCEL_PREVIEWS === 'true';
   app.use(
     cors({
       origin: (origin, cb) => {
-        // Allow same-origin / curl (no origin) and configured origins.
-        if (!origin || origins.includes(origin)) return cb(null, true);
-        return cb(new Error('Not allowed by CORS'));
+        // Allow same-origin / curl / server-to-server (no Origin header).
+        if (!origin) return cb(null, true);
+        if (origins.includes(origin)) return cb(null, true);
+        if (allowVercelPreviews && /\.vercel\.app$/.test(new URL(origin).hostname)) {
+          return cb(null, true);
+        }
+        return cb(new Error(`Origin ${origin} not allowed by CORS`));
       },
       credentials: true,
     })
