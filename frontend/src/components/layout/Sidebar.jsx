@@ -70,14 +70,6 @@ export default function Sidebar({ open, onClose }) {
             );
           })}
         </nav>
-
-        <div className="border-t border-plum-800 px-5 py-4">
-          <p className="text-[11px] leading-relaxed text-plum-300">
-            Aurora Internship Programme
-            <br />
-            <span className="text-plum-400">Batch 2025–26 · v1.0</span>
-          </p>
-        </div>
       </aside>
     </>
   );
