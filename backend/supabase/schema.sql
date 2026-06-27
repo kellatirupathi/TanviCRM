@@ -4,7 +4,7 @@
 -- before seeding. It is idempotent: safe to re-run.
 -- ════════════════════════════════════════════════════════════════════
 
-create extension if not exists "pgcrypto";   -- for gen_random_uuid()
+create extension if not exists pgcrypto;   -- gen_random_uuid()
 
 -- ── Enums ───────────────────────────────────────────────────────────
 do $$ begin
@@ -52,10 +52,9 @@ create table if not exists public.customers (
 create index if not exists customers_segment_idx     on public.customers (segment);
 create index if not exists customers_total_spend_idx on public.customers (total_spend desc);
 create index if not exists customers_phone_idx       on public.customers (phone);
-create index if not exists customers_name_trgm_idx   on public.customers using gin (lower(name) gin_trgm_ops);
-
--- trigram extension powers fast ILIKE name search (optional but nice)
-create extension if not exists pg_trgm;
+-- B-tree index on lower(name) — speeds up ordered name lookups. (We use ILIKE
+-- for search, which doesn't need a trigram extension to work correctly.)
+create index if not exists customers_name_lower_idx  on public.customers (lower(name));
 
 -- ── Purchases ───────────────────────────────────────────────────────
 -- `items` is a JSONB array of { name, category, quantity, unitPrice } —
