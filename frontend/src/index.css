@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-paper text-ink font-sans antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+  h1, h2, h3, h4 {
+    @apply font-display tracking-tight;
+  }
+  ::selection {
+    @apply bg-plum-200 text-plum-900;
+  }
+  /* Custom scrollbar */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { @apply bg-transparent; }
+  ::-webkit-scrollbar-thumb { @apply bg-plum-200 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-plum-300; }
+}
+
+@layer components {
+  .skeleton {
+    @apply relative overflow-hidden bg-paper-200 rounded-md;
+  }
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0 -translate-x-full animate-shimmer;
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.55),
+      transparent
+    );
+  }
+  .input-base {
+    @apply w-full rounded-lg border border-paper-200 bg-white px-3.5 py-2.5 text-sm text-ink
+      placeholder:text-ink-muted shadow-sm transition
+      focus:border-plum-400 focus:outline-none focus:ring-2 focus:ring-plum-200;
+  }
+  .card {
+    @apply rounded-xl2 border border-paper-200 bg-white shadow-card;
+  }
+}
