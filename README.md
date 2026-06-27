@@ -52,15 +52,15 @@ an analytics dashboard.
 |-----------|------------|
 | Frontend  | React (Vite) · Tailwind CSS · React Router · Axios · Recharts · jsPDF |
 | Backend   | Node.js · Express (ES modules) |
-| Database  | MongoDB · Mongoose |
+| Database  | **Supabase (PostgreSQL)** via `@supabase/supabase-js` |
 | Auth      | JWT · bcrypt · RBAC |
 | Security  | helmet · CORS · express-rate-limit · express-validator |
-| Testing   | Jest · Supertest · mongodb-memory-server |
+| Testing   | Jest · Supertest (runs against a live Supabase project) |
 
-> **Note on the database:** the requirement spec *recommends* PostgreSQL, but the
-> engagement's mandated tech stack specifies **MongoDB + Mongoose**, which is what this
-> implementation uses. All revenue/spend totals are computed with rounding to 2 decimals
-> for accuracy.
+> **Note on the database:** this build runs on **Supabase (PostgreSQL)**. Analytics
+> aggregations are implemented as Postgres RPC functions (see `backend/supabase/schema.sql`).
+> All revenue/spend totals are rounded to 2 decimals for accuracy. The backend speaks
+> camelCase to the frontend via a mapping layer, so the React app is unchanged.
 
 ---
 
@@ -68,7 +68,7 @@ an analytics dashboard.
 
 ### Prerequisites
 - **Node.js ≥ 18**
-- **MongoDB** running locally (`mongodb://127.0.0.1:27017`) or a MongoDB Atlas URI
+- A **Supabase** project (free tier is fine) — https://supabase.com
 
 ### 1. Install dependencies
 ```bash
@@ -77,17 +77,30 @@ npm run install:all
 # (or: cd backend && npm install   then   cd ../frontend && npm install)
 ```
 
+### 1b. Create the database schema
+In the Supabase dashboard → **SQL Editor → New query**, paste and run the contents of
+[`backend/supabase/schema.sql`](backend/supabase/schema.sql). This creates the `users`,
+`customers`, `purchases` tables, indexes, and the analytics RPC functions. (Safe to re-run.)
+
 ### 2. Configure environment
 ```bash
 cp backend/.env.example backend/.env
-# edit backend/.env — set MONGO_URI and a strong JWT_SECRET
+# edit backend/.env:
+#   SUPABASE_URL              = your project URL (Settings → API)
+#   SUPABASE_SERVICE_ROLE_KEY = the service_role secret key (server-only!)
+#   JWT_SECRET                = a long random string
 ```
 
 ### 3. Seed realistic demo data
 ```bash
 npm run seed
-# seeds 2 users, 35 customers and ~150 purchases across the last ~14 months
+# seeds 2 users, 35 customers and ~130 purchases across the last ~14 months
 ```
+
+> **Migrating existing MongoDB data instead?** If you have data in a MongoDB Atlas
+> cluster, set `MONGO_URI` in `.env` and run `npm run migrate:mongo` — it copies all
+> users/customers/purchases into Supabase (preserving bcrypt password hashes and
+> relationships) **without modifying MongoDB**.
 
 ### 4. Run it
 ```bash
@@ -114,8 +127,6 @@ npm --prefix backend start   # serves the API
 |-------|---------------------------|------------|--------|
 | Admin | `admin@tanviboutique.in`  | `Admin@123`| Everything + team management + delete customers |
 | Staff | `staff@tanviboutique.in`  | `Staff@123`| Customers & purchases, analytics, CSV export |
-
-The login screen has one-tap buttons to fill either set of credentials.
 
 ---
 

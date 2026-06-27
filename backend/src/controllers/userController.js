@@ -1,86 +1,64 @@
-import User from '../models/User.js';
 import { ApiError } from '../utils/ApiError.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { ROLES } from '../config/constants.js';
+import * as Users from '../data/users.js';
 
 export const listUsers = asyncHandler(async (_req, res) => {
-  const users = await User.find().sort({ createdAt: -1 }).lean();
-  res.json({
-    success: true,
-    data: {
-      items: users.map((u) => ({
-        id: u._id,
-        name: u.name,
-        email: u.email,
-        role: u.role,
-        active: u.active,
-        avatarColor: u.avatarColor,
-        lastLoginAt: u.lastLoginAt,
-        createdAt: u.createdAt,
-      })),
-    },
-  });
+  const rows = await Users.listUsers();
+  res.json({ success: true, data: { items: rows.map(Users.userToApi) } });
 });
 
 export const createUser = asyncHandler(async (req, res) => {
   const { name, email, password, role } = req.body;
-  const exists = await User.findOne({ email: String(email).toLowerCase() });
+  const exists = await Users.findUserByEmail(email);
   if (exists) throw ApiError.conflict('A user with that email already exists');
 
-  const user = new User({
+  const row = await Users.createUser({
     name,
     email,
+    password,
     role: Object.values(ROLES).includes(role) ? role : ROLES.STAFF,
-    avatarColor: '#6B2C4F',
   });
-  await user.setPassword(password);
-  await user.save();
-  res.status(201).json({ success: true, data: { user: user.toSafeJSON() } });
+  res.status(201).json({ success: true, data: { user: Users.userToApi(row) } });
 });
 
 export const updateUser = asyncHandler(async (req, res) => {
-  const user = await User.findById(req.params.id);
+  const user = await Users.findUserById(req.params.id);
   if (!user) throw ApiError.notFound('User not found');
 
   const { name, role, active, password } = req.body;
-  if (name !== undefined) user.name = name;
-  if (role !== undefined && Object.values(ROLES).includes(role)) user.role = role;
 
   // Guard: don't allow the last active admin to be demoted/deactivated.
   if (
     (active === false || (role && role !== ROLES.ADMIN)) &&
     user.role === ROLES.ADMIN
   ) {
-    const otherAdmins = await User.countDocuments({
-      _id: { $ne: user._id },
-      role: ROLES.ADMIN,
-      active: true,
-    });
+    const otherAdmins = await Users.countAdmins({ excludeId: user.id });
     if (otherAdmins === 0) {
       throw ApiError.badRequest('Cannot demote or deactivate the last active admin');
     }
   }
-  if (active !== undefined) user.active = active;
-  if (password) await user.setPassword(password);
 
-  await user.save();
-  res.json({ success: true, data: { user: user.toSafeJSON() } });
+  const patch = {};
+  if (name !== undefined) patch.name = name;
+  if (role !== undefined && Object.values(ROLES).includes(role)) patch.role = role;
+  if (active !== undefined) patch.active = active;
+  if (password) patch.password = password;
+
+  const updated = await Users.updateUser(user.id, patch);
+  res.json({ success: true, data: { user: Users.userToApi(updated) } });
 });
 
 export const deleteUser = asyncHandler(async (req, res) => {
-  if (String(req.params.id) === String(req.user._id)) {
+  if (String(req.params.id) === String(req.user.id)) {
     throw ApiError.badRequest('You cannot delete your own account');
   }
-  const user = await User.findById(req.params.id);
+  const user = await Users.findUserById(req.params.id);
   if (!user) throw ApiError.notFound('User not found');
   if (user.role === ROLES.ADMIN) {
-    const otherAdmins = await User.countDocuments({
-      _id: { $ne: user._id },
-      role: ROLES.ADMIN,
-      active: true,
-    });
+    const otherAdmins = await Users.countAdmins({ excludeId: user.id });
     if (otherAdmins === 0) throw ApiError.badRequest('Cannot delete the last active admin');
   }
-  await user.deleteOne();
+  await Users.deleteUser(user.id);
   res.json({ success: true, data: { message: 'User removed' } });
 });

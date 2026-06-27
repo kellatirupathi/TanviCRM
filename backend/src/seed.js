@@ -1,10 +1,11 @@
 import 'dotenv/config';
-import { connectDB, disconnectDB } from './config/db.js';
+import { verifyConnection } from './config/supabase.js';
 import { runSeed } from './utils/seedRunner.js';
 
 async function main() {
-  await connectDB(process.env.MONGO_URI);
-  console.log('🌱 Seeding TanviCRM…\n');
+  await verifyConnection();
+  console.log('✓ Supabase connection OK');
+  console.log('🌱 Seeding TanviCRM (Supabase)…\n');
 
   const summary = await runSeed({
     adminEmail: process.env.SEED_ADMIN_EMAIL,
@@ -22,12 +23,10 @@ async function main() {
   console.log('\n   Admin login: ' + (process.env.SEED_ADMIN_EMAIL || 'admin@tanviboutique.in') + ' / ' + (process.env.SEED_ADMIN_PASSWORD || 'Admin@123'));
   console.log('   Staff login: staff@tanviboutique.in / Staff@123\n');
 
-  await disconnectDB();
   process.exit(0);
 }
 
-main().catch(async (err) => {
-  console.error('✗ Seed failed:', err);
-  await disconnectDB().catch(() => {});
+main().catch((err) => {
+  console.error('✗ Seed failed:', err.message || err);
   process.exit(1);
 });

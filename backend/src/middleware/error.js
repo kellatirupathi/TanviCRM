@@ -10,21 +10,24 @@ export function errorHandler(err, _req, res, _next) {
   let message = err.message || 'Internal server error';
   let details = err.details;
 
-  // Mongoose validation / cast / duplicate-key normalisation.
-  if (err.name === 'ValidationError') {
-    status = 400;
-    message = 'Validation failed';
-    details = Object.values(err.errors).map((e) => ({
-      field: e.path,
-      message: e.message,
-    }));
-  } else if (err.name === 'CastError') {
-    status = 400;
-    message = `Invalid ${err.path}: ${err.value}`;
-  } else if (err.code === 11000) {
+  // Postgres / Supabase (PostgREST) error normalisation.
+  // Supabase errors carry a SQLSTATE-style `code`.
+  if (err.code === '23505') {
+    // unique_violation
     status = 409;
-    const field = Object.keys(err.keyValue || {})[0] || 'field';
-    message = `A record with that ${field} already exists`;
+    message = 'A record with that value already exists';
+  } else if (err.code === '23503') {
+    // foreign_key_violation
+    status = 400;
+    message = 'Referenced record does not exist';
+  } else if (err.code === '22P02' || err.code === '22007' || err.code === '22008') {
+    // invalid_text_representation / invalid datetime — bad id or date
+    status = 400;
+    message = 'Invalid value in request';
+  } else if (err.code === '23502') {
+    // not_null_violation
+    status = 400;
+    message = 'A required field is missing';
   }
 
   if (status >= 500) {

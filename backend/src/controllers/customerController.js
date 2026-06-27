@@ -1,65 +1,20 @@
-import Customer from '../models/Customer.js';
-import Purchase from '../models/Purchase.js';
 import { ApiError } from '../utils/ApiError.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { resegmentCohort } from '../utils/segmentation.js';
-import { finiteNumber, startOfDay, endOfDay, range } from '../utils/queryParams.js';
-import { SEGMENTS } from '../config/constants.js';
+import * as Customers from '../data/customers.js';
+import { purchasesForCustomer } from '../data/purchases.js';
 
 const AVATAR_COLORS = [
   '#6B2C4F', '#A8456B', '#8E5572', '#B8860B', '#7A6C5D',
   '#4A5859', '#9C6644', '#5C4B51', '#856084', '#3E5641',
 ];
 const pickColor = (seed) =>
-  AVATAR_COLORS[Math.abs([...seed].reduce((a, c) => a + c.charCodeAt(0), 0)) % AVATAR_COLORS.length];
-
-/**
- * Build the Mongo filter for the customer list from query params.
- * Supports: q (name/phone/email), segment, purchase date range, spend range.
- */
-function buildCustomerQuery(query) {
-  const filter = {};
-  const { q, segment, minSpend, maxSpend, purchaseFrom, purchaseTo } = query;
-
-  if (q && q.trim()) {
-    const rx = new RegExp(q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-    filter.$or = [{ name: rx }, { phone: rx }, { email: rx }];
-  }
-  if (segment && Object.values(SEGMENTS).includes(segment)) {
-    filter.segment = segment;
-  }
-  const spend = range(finiteNumber(minSpend), finiteNumber(maxSpend));
-  if (spend) filter.totalSpend = spend;
-
-  const lastPurchase = range(startOfDay(purchaseFrom), endOfDay(purchaseTo));
-  if (lastPurchase) filter.lastPurchaseAt = lastPurchase;
-
-  return filter;
-}
-
-const SORT_MAP = {
-  name: { name: 1 },
-  recent: { lastPurchaseAt: -1, createdAt: -1 },
-  spend: { totalSpend: -1 },
-  purchases: { purchaseCount: -1 },
-  created: { createdAt: -1 },
-};
+  AVATAR_COLORS[Math.abs([...String(seed)].reduce((a, c) => a + c.charCodeAt(0), 0)) % AVATAR_COLORS.length];
 
 export const listCustomers = asyncHandler(async (req, res) => {
-  const filter = buildCustomerQuery(req.query);
   const page = Math.max(1, Number(req.query.page) || 1);
   const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 12));
-  const sort = SORT_MAP[req.query.sort] || SORT_MAP.recent;
-
-  const [items, total] = await Promise.all([
-    Customer.find(filter)
-      .sort(sort)
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .lean(),
-    Customer.countDocuments(filter),
-  ]);
-
+  const { items, total } = await Customers.listCustomers(req.query, { page, limit });
   res.json({
     success: true,
     data: {
@@ -70,14 +25,12 @@ export const listCustomers = asyncHandler(async (req, res) => {
 });
 
 export const getCustomer = asyncHandler(async (req, res) => {
-  const customer = await Customer.findById(req.params.id).lean();
+  const customer = await Customers.getCustomer(req.params.id);
   if (!customer) throw ApiError.notFound('Customer not found');
 
-  const purchases = await Purchase.find({ customer: customer._id })
-    .sort({ date: -1 })
-    .lean();
+  const purchases = await purchasesForCustomer(req.params.id);
 
-  // Category breakdown for this customer (for the profile page).
+  // Category breakdown for this customer (profile page).
   const catMap = {};
   for (const p of purchases) {
     for (const it of p.items) {
@@ -106,39 +59,32 @@ export const getCustomer = asyncHandler(async (req, res) => {
 export const createCustomer = asyncHandler(async (req, res) => {
   const body = pickCustomerFields(req.body);
   body.avatarColor = pickColor(body.name || 'C');
-  body.createdBy = req.user._id;
-  const customer = await Customer.create(body);
+  const customer = await Customers.createCustomer(body, req.user.id);
   res.status(201).json({ success: true, data: { customer } });
 });
 
 export const updateCustomer = asyncHandler(async (req, res) => {
-  const customer = await Customer.findById(req.params.id);
-  if (!customer) throw ApiError.notFound('Customer not found');
-  Object.assign(customer, pickCustomerFields(req.body));
-  await customer.save();
+  const existing = await Customers.getCustomerRaw(req.params.id);
+  if (!existing) throw ApiError.notFound('Customer not found');
+  const customer = await Customers.updateCustomer(req.params.id, pickCustomerFields(req.body));
   res.json({ success: true, data: { customer } });
 });
 
 export const deleteCustomer = asyncHandler(async (req, res) => {
-  const customer = await Customer.findById(req.params.id);
-  if (!customer) throw ApiError.notFound('Customer not found');
-  const wasPaying = customer.purchaseCount > 0;
-  await Purchase.deleteMany({ customer: customer._id });
-  await customer.deleteOne();
-  // Removing a paying customer changes the cohort and can shift the VIP
-  // threshold, so re-segment the remaining customers.
+  const existing = await Customers.getCustomerRaw(req.params.id);
+  if (!existing) throw ApiError.notFound('Customer not found');
+  const wasPaying = existing.purchase_count > 0;
+  await Customers.deleteCustomer(req.params.id); // purchases cascade via FK
   if (wasPaying) await resegmentCohort();
   res.json({ success: true, data: { message: 'Customer and purchases removed' } });
 });
 
 /**
- * Export the *filtered* customer list to CSV (respects the same query params
- * as the list endpoint, but ignores pagination).
+ * Export the *filtered* customer list to CSV (same filters as the list, no
+ * pagination).
  */
 export const exportCustomersCsv = asyncHandler(async (req, res) => {
-  const filter = buildCustomerQuery(req.query);
-  const sort = SORT_MAP[req.query.sort] || SORT_MAP.spend;
-  const customers = await Customer.find(filter).sort(sort).lean();
+  const customers = await Customers.listCustomersForExport(req.query);
 
   const headers = [
     'Name', 'Phone', 'Email', 'City', 'Segment',
@@ -157,9 +103,7 @@ export const exportCustomersCsv = asyncHandler(async (req, res) => {
     (c.stylePreferences || []).join('; '),
   ]);
 
-  const csv = [headers, ...rows]
-    .map((row) => row.map(csvCell).join(','))
-    .join('\r\n');
+  const csv = [headers, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n');
 
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader(

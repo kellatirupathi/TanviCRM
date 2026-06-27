@@ -19,7 +19,9 @@ services:
       - key: JWT_EXPIRES_IN
         value: 7d
       # Set these in the Render dashboard (Environment tab):
-      - key: MONGO_URI
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       - key: JWT_SECRET
         sync: false

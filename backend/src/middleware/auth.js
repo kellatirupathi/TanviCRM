@@ -1,11 +1,11 @@
 import jwt from 'jsonwebtoken';
-import User from '../models/User.js';
+import { findUserById } from '../data/users.js';
 import { ApiError } from '../utils/ApiError.js';
 import { asyncHandler } from './asyncHandler.js';
 
 export function signToken(user) {
   return jwt.sign(
-    { sub: String(user._id), role: user.role },
+    { sub: String(user.id), role: user.role },
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
   );
@@ -27,10 +27,10 @@ export const protect = asyncHandler(async (req, _res, next) => {
     throw ApiError.unauthorized('Invalid or expired session');
   }
 
-  const user = await User.findById(payload.sub);
+  const user = await findUserById(payload.sub);
   if (!user || !user.active) throw ApiError.unauthorized('Account is inactive');
 
-  req.user = user;
+  req.user = user; // raw row: { id, name, email, role, active, ... }
   next();
 });
 

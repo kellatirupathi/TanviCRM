@@ -14,7 +14,7 @@ const router = Router();
 router.use(protect);
 
 const purchaseValidators = [
-  body('customer').isMongoId().withMessage('Valid customer required'),
+  body('customer').isUUID().withMessage('Valid customer required'),
   body('items').isArray({ min: 1 }).withMessage('At least one item is required'),
   body('items.*.name').isString().trim().notEmpty().withMessage('Item name required'),
   body('items.*.category')
@@ -28,7 +28,7 @@ const purchaseValidators = [
 
 // Update allows customer to be optional (only when reassigning).
 const updateValidators = [
-  body('customer').optional().isMongoId(),
+  body('customer').optional().isUUID(),
   body('items').optional().isArray({ min: 1 }),
   body('items.*.name').optional().isString().trim().notEmpty(),
   body('items.*.category').optional().isIn(PRODUCT_CATEGORIES),

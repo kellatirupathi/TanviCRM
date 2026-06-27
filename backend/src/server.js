@@ -1,12 +1,14 @@
 import 'dotenv/config';
 import { createApp } from './app.js';
-import { connectDB } from './config/db.js';
+import { verifyConnection } from './config/supabase.js';
 
 const PORT = process.env.PORT || 5000;
 
 async function start() {
   try {
-    await connectDB(process.env.MONGO_URI);
+    await verifyConnection();
+    // eslint-disable-next-line no-console
+    console.log('✓ Supabase connection OK');
     const app = createApp();
     app.listen(PORT, () => {
       // eslint-disable-next-line no-console
