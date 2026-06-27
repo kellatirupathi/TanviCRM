@@ -14,8 +14,8 @@ export default function LoginPage() {
   const location = useLocation();
   const [params] = useSearchParams();
 
-  const [email, setEmail] = useState('admin@tanviboutique.in');
-  const [password, setPassword] = useState('Admin@123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -35,11 +35,6 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const fill = (e, p) => {
-    setEmail(e);
-    setPassword(p);
   };
 
   return (
@@ -150,34 +145,6 @@ export default function LoginPage() {
               {loading ? 'Signing in…' : 'Sign in'}
             </Button>
           </form>
-
-          <div className="mt-8 rounded-xl border border-paper-200 bg-white p-4">
-            <p className="mb-2.5 text-xs font-semibold uppercase tracking-wider text-ink-muted">
-              Demo credentials
-            </p>
-            <div className="space-y-2">
-              <button
-                onClick={() => fill('admin@tanviboutique.in', 'Admin@123')}
-                className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition hover:bg-paper-100"
-              >
-                <span>
-                  <span className="font-medium text-ink">Admin</span>
-                  <span className="ml-2 text-ink-muted">admin@tanviboutique.in</span>
-                </span>
-                <span className="text-xs text-plum-600">Use →</span>
-              </button>
-              <button
-                onClick={() => fill('staff@tanviboutique.in', 'Staff@123')}
-                className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition hover:bg-paper-100"
-              >
-                <span>
-                  <span className="font-medium text-ink">Counter Staff</span>
-                  <span className="ml-2 text-ink-muted">staff@tanviboutique.in</span>
-                </span>
-                <span className="text-xs text-plum-600">Use →</span>
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>
